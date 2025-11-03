@@ -1,19 +1,17 @@
 import streamlit as st
 from PIL import Image
-from fpdf2 import FPDF, __version__ as fpdf_version
-st.caption(f"FPDF version: {fpdf_version}")
+from fpdf import FPDF, __version__ as fpdf_version
 import base64
 import datetime
 import os
 
-# ================= PAGE CONFIG =================
 st.set_page_config(
     page_title="PLAIN & PLAIN-L AF Risk Calculator",
     page_icon="🫀",
     layout="centered"
 )
 
-# ================= HEADER =================
+# ===== HEADER =====
 col1, col2 = st.columns([1, 4])
 with col1:
     try:
@@ -27,14 +25,14 @@ with col2:
 
 st.markdown("---")
 
-# ================= SIDEBAR =================
+# ===== SIDEBAR =====
 st.sidebar.header("⚙️ Settings")
 model = st.sidebar.radio("Select model:", ["PLAIN", "PLAIN-L"])
 st.sidebar.info("PLAIN = ECG + Clinical\nPLAIN-L = + Echocardiogram (LAVI ≥35)")
 st.sidebar.markdown("---")
 st.sidebar.caption("Developed by Neurology & AI Research Unit, NIT")
 
-# ================= INPUT =================
+# ===== INPUT =====
 st.markdown("### 🧩 Input Patient Information")
 
 colA, colB = st.columns(2)
@@ -53,9 +51,8 @@ with colB:
 
 st.markdown("---")
 
-# ================= CALCULATION =================
+# ===== CALCULATION =====
 if st.button("🧮 Calculate AF Risk"):
-    # --- Calculate score ---
     if model == "PLAIN":
         score = (4 if ptfv1 else 0) + (2 if lae else 0) + (1 if age_year >= 60 else 0) + (1 if insula else 0) + (1 if nihss else 0)
         cutoff = 4.5
@@ -67,41 +64,39 @@ if st.button("🧮 Calculate AF Risk"):
     if score >= cutoff:
         risk_text = "Likely AF"
         comment = "High risk of new-onset AF. Consider prolonged ECG monitoring (≥72h)."
-        color = "red"
         st.error(f"🚨 **{risk_text}** — {comment}")
     else:
         risk_text = "Not likely AF"
         comment = "Low risk. Routine follow-up is sufficient."
-        color = "green"
         st.success(f"✅ **{risk_text}** — {comment}")
 
     st.progress(min(score / 10, 1.0))
     st.caption("Cut-off ≥ 4.5 indicates *Likely AF* (AUC ≈ 0.89, Sens 98.9 %, Spec 73.8 %)")
 
-    # ================= PDF GENERATION =================
+    # ===== PDF GENERATION =====
     class PDF(FPDF):
         pass
 
     pdf = PDF()
     pdf.add_page()
 
-    # --- Add DejaVu fonts (Regular + Bold) ---
     font_regular = os.path.join(os.path.dirname(__file__), "DejaVuSansCondensed.ttf")
     font_bold = os.path.join(os.path.dirname(__file__), "DejaVuSans-Bold.ttf")
-    pdf.add_font("DejaVu", "", font_regular, uni=True)
-    if os.path.exists(font_bold):
-        pdf.add_font("DejaVu", "B", font_bold, uni=True)
-    else:
-        pdf.add_font("DejaVu", "B", font_regular, uni=True)
 
-    # --- Header ---
-    pdf.set_font("DejaVu", "B", 18)
-    pdf.cell(0, 10, "Neurological Institute of Thailand", ln=True, align="C")
+    pdf.add_font("DejaVu", "", font_regular, uni=True)
+    pdf.add_font("DejaVu", "B", font_bold if os.path.exists(font_bold) else font_regular, uni=True)
+
+    # Add logo
+    if os.path.exists("logo.png"):
+        pdf.image("logo.png", x=60, y=10, w=90)
+        pdf.ln(40)
+
     pdf.set_font("DejaVu", "B", 16)
+    pdf.cell(0, 10, "Neurological Institute of Thailand", ln=True, align="C")
+    pdf.set_font("DejaVu", "B", 14)
     pdf.cell(0, 10, "PLAIN / PLAIN-L AF Risk Report", ln=True, align="C")
     pdf.ln(10)
 
-    # --- Patient info ---
     pdf.set_font("DejaVu", "", 12)
     pdf.cell(0, 10, f"Date: {datetime.date.today().strftime('%d %B %Y')}", ln=True)
     pdf.cell(0, 10, f"Patient Name: {patient_name}", ln=True)
@@ -112,7 +107,6 @@ if st.button("🧮 Calculate AF Risk"):
     pdf.multi_cell(0, 10, f"Interpretation: {comment}")
     pdf.ln(10)
 
-    # --- Explanation ---
     pdf.set_text_color(0, 0, 128)
     pdf.multi_cell(
         0, 8,
@@ -122,11 +116,9 @@ if st.button("🧮 Calculate AF Risk"):
         "Validation: AUC = 0.892, Sensitivity = 98.9%, Specificity = 73.8%.\n\n"
         "Clinical advice: Consider ECG or Holter monitoring for high-risk patients."
     )
-
     pdf.set_text_color(0, 0, 0)
     pdf.output("AF_Risk_Report.pdf")
 
-    # --- Download button ---
     with open("AF_Risk_Report.pdf", "rb") as f:
         pdf_data = f.read()
     b64 = base64.b64encode(pdf_data).decode()
