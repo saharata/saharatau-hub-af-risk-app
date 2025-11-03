@@ -1,6 +1,7 @@
 import streamlit as st
 from PIL import Image
-from fpdf import FPDF
+from fpdf import FPDF, __version__ as fpdf_version
+st.caption(f"FPDF version: {fpdf_version}")
 import base64
 import datetime
 import os
